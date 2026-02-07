@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>SFLA Tracker</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #C4A052;
+      --primary-dark: #9A7B3C;
+      --suitable: #22c55e;
+      --suitable-stale: #eab308;
+      --suitable-old: #f97316;
+      --unsuitable: #6b7280;
+      --pending: #ef4444;
+      --route: #e879f9;
+      --bg-dark: #1a1a2e;
+      --bg-card: #16213e;
+      --text: #f0f0f0;
+      --text-muted: #9ca3af;
+    }
+    
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { 
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-dark);
+      color: var(--text);
+    }
+    #map { height: 100vh; width: 100%; }
+    
+    /* Dark leaflet popup */
+    .leaflet-popup-content-wrapper {
+      background: var(--bg-card);
+      color: var(--text);
+      border-radius: 16px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    }
+    .leaflet-popup-tip { background: var(--bg-card); }
+    .leaflet-popup-content { margin: 16px 20px; min-width: 260px; }
+    
+    /* Popup styling */
+    .popup-name { 
+      font-size: 22px; 
+      font-weight: 700; 
+      margin-bottom: 12px;
+      color: var(--primary);
+    }
+    .popup-info { 
+      display: flex; 
+      justify-content: space-between; 
+      margin-bottom: 8px;
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+    .popup-info span:last-child { color: var(--text); font-weight: 500; }
+    
+    .popup-status {
+      display: inline-block;
+      padding: 4px 14px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .status-suitable { background: var(--suitable); color: white; }
+    .status-suitable-stale { background: var(--suitable-stale); color: white; }
+    .status-suitable-old { background: var(--suitable-old); color: white; }
+    .status-unsuitable { background: var(--unsuitable); color: white; }
+    .status-pending { background: var(--pending); color: white; }
+    
+    .popup-notes {
+      margin: 14px 0;
+    }
+    .popup-notes textarea {
+      width: 100%;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px;
+      padding: 12px;
+      color: var(--text);
+      font-size: 14px;
+      font-family: inherit;
+      resize: none;
+      min-height: 60px;
+    }
+    .popup-notes textarea:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+    .popup-notes textarea::placeholder { color: var(--text-muted); }
+    
+    .popup-buttons {
+      display: flex;
+      gap: 12px;
+      margin-top: 16px;
+    }
+    .popup-btn {
+      flex: 1;
+      padding: 14px 10px;
+      border: none;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.1s, opacity 0.2s;
+    }
+    .popup-btn:active { transform: scale(0.97); }
+    .popup-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn-suitable { background: var(--suitable); color: white; }
+    .btn-unsuitable { background: var(--unsuitable); color: white; }
+    
+    /* Controls */
+    .controls {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .control-btn {
+      width: 44px;
+      height: 44px;
+      background: var(--bg-card);
+      border: none;
+      border-radius: 12px;
+      color: var(--text);
+      font-size: 20px;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .control-btn:hover { background: var(--primary-dark); }
+    .control-btn.active { background: var(--primary); }
+    
+    /* Legend */
+    .legend {
+      position: absolute;
+      bottom: 30px;
+      left: 16px;
+      background: var(--bg-card);
+      padding: 14px 18px;
+      border-radius: 14px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+      z-index: 1000;
+    }
+    .legend-title { 
+      font-weight: 600; 
+      margin-bottom: 10px; 
+      color: var(--primary);
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .legend-item { 
+      display: flex; 
+      align-items: center; 
+      margin: 6px 0; 
+      font-size: 12px; 
+    }
+    .legend-dot { 
+      width: 12px; 
+      height: 12px; 
+      border-radius: 3px; 
+      margin-right: 10px;
+      flex-shrink: 0;
+    }
+    .legend-line {
+      width: 20px;
+      height: 3px;
+      margin-right: 8px;
+      border-top: 3px dashed var(--route);
+    }
+    
+    /* Shape labels */
+    .shape-label {
+      background: transparent;
+      border: none;
+      color: white;
+      font-size: 11px;
+      font-weight: 600;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.8), 0 0 2px rgba(0,0,0,0.9);
+      white-space: nowrap;
+    }
+    
+    /* Location dot */
+    .my-location {
+      width: 16px;
+      height: 16px;
+      background: #3b82f6;
+      border: 3px solid white;
+      border-radius: 50%;
+      box-shadow: 0 0 10px rgba(59,130,246,0.5);
+    }
+    
+    /* Hide default leaflet controls */
+    .leaflet-control-zoom { display: none; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  
+  <div class="controls">
+    <button class="control-btn" id="btnLocation" title="My Location">📍</button>
+    <button class="control-btn" id="btnSatellite" title="Satellite View">🛰️</button>
+    <button class="control-btn" id="btnZoomIn" title="Zoom In">+</button>
+    <button class="control-btn" id="btnZoomOut" title="Zoom Out">−</button>
+  </div>
+  
+  <div class="legend">
+    <div class="legend-title">Status</div>
+    <div class="legend-item"><span class="legend-dot" style="background: var(--suitable)"></span> Suitable</div>
+    <div class="legend-item"><span class="legend-dot" style="background: var(--suitable-stale)"></span> Suitable (3+ weeks)</div>
+    <div class="legend-item"><span class="legend-dot" style="background: var(--suitable-old)"></span> Suitable (4+ weeks)</div>
+    <div class="legend-item"><span class="legend-dot" style="background: var(--unsuitable)"></span> Unsuitable</div>
+    <div class="legend-item"><span class="legend-dot" style="background: var(--pending)"></span> Pending Review</div>
+    <div class="legend-item"><span class="legend-line"></span> Route</div>
+  </div>
+  
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="shapes.js"></script>
+  <script>
+    // Config
+    const AIRTABLE_BASE = 'appBJW3FvPw5c659F';
+    const AIRTABLE_TABLE = 'Sites';
+    const API_KEY = 'patLbOrwwrjme5vN3.ae163eba9b6d38277421312fdc531ab473e61d841e7dede3bf592b475a8c0a54';
+    
+    // Colors
+    const COLORS = {
+      suitable: '#22c55e',
+      suitableStale: '#eab308',
+      suitableOld: '#f97316',
+      unsuitable: '#6b7280',
+      pending: '#ef4444',
+      route: '#e879f9'
+    };
+    
+    // Calculate days since date
+    function daysSince(dateStr) {
+      if (!dateStr) return Infinity;
+      const then = new Date(dateStr);
+      const now = new Date();
+      return Math.floor((now - then) / (1000 * 60 * 60 * 24));
+    }
+    
+    // Get color based on status and age
+    function getShapeColor(status, lastChecked) {
+      if (status === 'Unsuitable') return COLORS.unsuitable;
+      if (status === 'Pending' || !status || status === 'Unknown') return COLORS.pending;
+      
+      if (status === 'Suitable') {
+        const days = daysSince(lastChecked);
+        if (days >= 28) return COLORS.suitableOld;    // 4+ weeks
+        if (days >= 21) return COLORS.suitableStale;   // 3+ weeks
+        return COLORS.suitable;                        // Fresh
+      }
+      
+      return COLORS.pending;
+    }
+    
+    // Get status class for popup
+    function getStatusClass(status, lastChecked) {
+      if (status === 'Unsuitable') return 'status-unsuitable';
+      if (status === 'Pending' || !status || status === 'Unknown') return 'status-pending';
+      
+      if (status === 'Suitable') {
+        const days = daysSince(lastChecked);
+        if (days >= 28) return 'status-suitable-old';
+        if (days >= 21) return 'status-suitable-stale';
+        return 'status-suitable';
+      }
+      
+      return 'status-pending';
+    }
+    
+    // Get display status
+    function getDisplayStatus(status, lastChecked) {
+      if (status === 'Unsuitable') return 'Unsuitable';
+      if (status === 'Pending' || !status || status === 'Unknown') return 'Pending Review';
+      
+      if (status === 'Suitable') {
+        const days = daysSince(lastChecked);
+        if (days >= 28) return 'Suitable (4+ wks)';
+        if (days >= 21) return 'Suitable (3+ wks)';
+        return 'Suitable';
+      }
+      
+      return 'Pending Review';
+    }
+    
+    // Map layers
+    const darkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '©OpenStreetMap, ©CARTO'
+    });
+    const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: '©Esri'
+    });
+    
+    // Initialize map
+    const map = L.map('map', {
+      center: [24.78, 46.74],
+      zoom: 13,
+      layers: [darkLayer],
+      zoomControl: false
+    });
+    
+    let isSatellite = false;
+    let polygons = {};
+    let labels = {};
+    let siteData = {};
+    let locationMarker = null;
+    
+    // Toggle satellite
+    document.getElementById('btnSatellite').addEventListener('click', function() {
+      isSatellite = !isSatellite;
+      this.classList.toggle('active', isSatellite);
+      if (isSatellite) {
+        map.removeLayer(darkLayer);
+        map.addLayer(satelliteLayer);
+      } else {
+        map.removeLayer(satelliteLayer);
+        map.addLayer(darkLayer);
+      }
+    });
+    
+    // Zoom controls
+    document.getElementById('btnZoomIn').addEventListener('click', () => map.zoomIn());
+    document.getElementById('btnZoomOut').addEventListener('click', () => map.zoomOut());
+    
+    // Location
+    document.getElementById('btnLocation').addEventListener('click', function() {
+      this.textContent = '⏳';
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const latlng = [pos.coords.latitude, pos.coords.longitude];
+          map.setView(latlng, 15);
+          
+          if (locationMarker) map.removeLayer(locationMarker);
+          locationMarker = L.marker(latlng, {
+            icon: L.divIcon({ className: 'my-location', iconSize: [16, 16] })
+          }).addTo(map);
+          
+          this.textContent = '📍';
+        },
+        () => {
+          alert('Could not get location');
+          this.textContent = '📍';
+        },
+        { enableHighAccuracy: true }
+      );
+    });
+    
+    // Format area
+    function formatArea(m2) {
+      if (m2 >= 10000) return (m2 / 10000).toFixed(1) + ' ha';
+      return m2.toLocaleString() + ' m²';
+    }
+    
+    // Render routes
+    function renderRoutes() {
+      if (typeof ROUTES !== 'undefined') {
+        ROUTES.forEach(route => {
+          L.polyline(route.coords, {
+            color: COLORS.route,
+            weight: 4,
+            dashArray: '10, 10',
+            opacity: 0.9
+          }).addTo(map).bindPopup(`<div class="popup-name">${route.name}</div>`);
+        });
+      }
+    }
+    
+    // Load site data from Airtable
+    async function loadSiteData() {
+      try {
+        let allRecords = [];
+        let offset = null;
+        
+        do {
+          const url = `https://api.airtable.com/v0/${AIRTABLE_BASE}/${AIRTABLE_TABLE}?pageSize=100${offset ? '&offset=' + offset : ''}`;
+          const resp = await fetch(url, {
+            headers: { 'Authorization': `Bearer ${API_KEY}` }
+          });
+          const data = await resp.json();
+          allRecords = allRecords.concat(data.records || []);
+          offset = data.offset;
+        } while (offset);
+        
+        // Index by name
+        allRecords.forEach(r => {
+          siteData[r.fields.Name] = r;
+        });
+        
+        renderRoutes();
+        renderShapes();
+      } catch (err) {
+        console.error('Failed to load:', err);
+      }
+    }
+    
+    // Render shapes
+    function renderShapes() {
+      SHAPES.forEach(shape => {
+        const site = siteData[shape.name];
+        const status = site?.fields?.Status || 'Pending';
+        const lastChecked = site?.fields?.LastChecked;
+        const color = getShapeColor(status, lastChecked);
+        
+        // Polygon
+        const poly = L.polygon(shape.coords, {
+          color: color,
+          fillColor: color,
+          fillOpacity: 0.4,
+          weight: 2
+        }).addTo(map);
+        
+        poly.on('click', () => showPopup(shape, poly));
+        polygons[shape.name] = poly;
+        
+        // Label
+        const label = L.marker(shape.center, {
+          icon: L.divIcon({
+            className: 'shape-label',
+            html: shape.name,
+            iconSize: null
+          })
+        }).addTo(map);
+        labels[shape.name] = label;
+      });
+    }
+    
+    // Update shape color
+    function updateShapeColor(name, status, lastChecked) {
+      const poly = polygons[name];
+      if (poly) {
+        const color = getShapeColor(status, lastChecked);
+        poly.setStyle({ color, fillColor: color });
+      }
+    }
+    
+    // Show popup
+    function showPopup(shape, poly) {
+      const site = siteData[shape.name];
+      const status = site?.fields?.Status || 'Pending';
+      const lastChecked = site?.fields?.LastChecked;
+      const lastCheckedDisplay = lastChecked
+        ? new Date(lastChecked).toLocaleDateString('en-GB')
+        : 'Never';
+      const notes = site?.fields?.Notes || '';
+      const recordId = site?.id;
+      
+      const statusClass = getStatusClass(status, lastChecked);
+      const displayStatus = getDisplayStatus(status, lastChecked);
+      
+      const html = `
+        <div class="popup-name">${shape.name}</div>
+        <div class="popup-info">
+          <span>Status</span>
+          <span class="popup-status ${statusClass}">${displayStatus}</span>
+        </div>
+        <div class="popup-info">
+          <span>Size</span>
+          <span>${formatArea(shape.area_m2)}</span>
+        </div>
+        <div class="popup-info">
+          <span>Last Updated</span>
+          <span>${lastCheckedDisplay}</span>
+        </div>
+        <div class="popup-notes">
+          <textarea id="popupNotes" placeholder="Add notes...">${notes}</textarea>
+        </div>
+        <div class="popup-buttons">
+          <button class="popup-btn btn-suitable" onclick="saveStatus('${shape.name}', '${recordId}', 'Suitable')">✓ Suitable</button>
+          <button class="popup-btn btn-unsuitable" onclick="saveStatus('${shape.name}', '${recordId}', 'Unsuitable')">✗ Unsuitable</button>
+        </div>
+      `;
+      
+      poly.bindPopup(html, { maxWidth: 320, closeButton: true }).openPopup();
+    }
+    
+    // Save status
+    async function saveStatus(name, recordId, status) {
+      const notesEl = document.getElementById('popupNotes');
+      const notes = notesEl ? notesEl.value : '';
+      
+      // Disable buttons
+      document.querySelectorAll('.popup-btn').forEach(b => b.disabled = true);
+      
+      const today = new Date().toISOString().split('T')[0];
+      
+      try {
+        const resp = await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE}/${AIRTABLE_TABLE}/${recordId}`, {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            fields: {
+              Status: status,
+              Notes: notes,
+              LastChecked: today
+            }
+          })
+        });
+        
+        if (!resp.ok) throw new Error('Save failed');
+        
+        const updated = await resp.json();
+        siteData[name] = updated;
+        updateShapeColor(name, status, today);
+        map.closePopup();
+        
+      } catch (err) {
+        console.error('Save error:', err);
+        alert('Failed to save. Try again.');
+        document.querySelectorAll('.popup-btn').forEach(b => b.disabled = false);
+      }
+    }
+    
+    // Init
+    loadSiteData();
+  </script>
+</body>
+</html>
