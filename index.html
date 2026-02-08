@@ -661,10 +661,6 @@
     // Log change to Change Log table
     async function logChange(siteName, previousStatus, newStatus, notes) {
       try {
-        const now = new Date();
-        const timestamp = now.toISOString().slice(0, 16).replace('T', ' ');
-        const logEntry = `${timestamp} | ${previousStatus || 'Pending'} → ${newStatus}${notes ? '\n' + notes : ''}`;
-        
         await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE}/Change%20Log`, {
           method: 'POST',
           headers: {
@@ -674,7 +670,10 @@
           body: JSON.stringify({
             fields: {
               Name: siteName,
-              Notes: logEntry
+              Timestamp: new Date().toISOString(),
+              PreviousStatus: previousStatus || 'Pending',
+              NewStatus: newStatus,
+              Notes: notes || ''
             }
           })
         });
