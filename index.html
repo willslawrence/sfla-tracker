@@ -30,15 +30,105 @@
     }
     #map { height: 100vh; width: 100%; }
     
-    /* Dark leaflet popup */
-    .leaflet-popup-content-wrapper {
+    /* Dark leaflet popup - HIDDEN (using custom info panel) */
+    .leaflet-popup { display: none !important; }
+    
+    /* Top info panel */
+    #info-panel {
+      position: fixed;
+      top: 16px;
+      left: 16px;
       background: var(--bg-card);
-      color: var(--text);
-      border-radius: 16px;
-      box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+      border-radius: 12px;
+      padding: 12px 14px;
+      max-width: 200px;
+      z-index: 1001;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+      display: none;
     }
-    .leaflet-popup-tip { background: var(--bg-card); }
-    .leaflet-popup-content { margin: 16px 20px; min-width: 260px; }
+    #info-panel.active { display: block; }
+    #info-panel .panel-name {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--primary);
+      margin-bottom: 6px;
+    }
+    #info-panel .panel-status {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+    #info-panel .panel-date {
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+    #info-panel .panel-close {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 14px;
+      cursor: pointer;
+    }
+    #info-panel textarea {
+      width: 100%;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 6px;
+      padding: 8px;
+      color: var(--text);
+      font-size: 12px;
+      font-family: inherit;
+      resize: none;
+      height: 40px;
+      margin-top: 8px;
+    }
+    #info-panel textarea::placeholder { color: var(--text-muted); }
+    
+    /* Radial action buttons */
+    #radial-menu {
+      position: fixed;
+      pointer-events: none;
+      z-index: 1000;
+      display: none;
+    }
+    #radial-menu.active { display: block; }
+    
+    .radial-btn {
+      position: absolute;
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      border: none;
+      font-size: 20px;
+      cursor: pointer;
+      pointer-events: auto;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+      transition: transform 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .radial-btn:active { transform: scale(0.9); }
+    .radial-btn.btn-suitable { background: var(--suitable); color: white; }
+    .radial-btn.btn-unsuitable { background: var(--unsuitable); color: white; }
+    .radial-btn.btn-close { 
+      background: rgba(255,255,255,0.9); 
+      color: #333; 
+      width: 36px; 
+      height: 36px; 
+      font-size: 16px; 
+    }
+    
+    .radial-line {
+      position: absolute;
+      background: rgba(255,255,255,0.4);
+      height: 2px;
+      transform-origin: left center;
+      pointer-events: none;
+    }
     
     /* Popup styling */
     .popup-name { 
@@ -139,44 +229,8 @@
     .control-btn:hover { background: var(--primary-dark); }
     .control-btn.active { background: var(--primary); }
     
-    /* Legend */
-    .legend {
-      position: absolute;
-      bottom: 30px;
-      left: 16px;
-      background: var(--bg-card);
-      padding: 14px 18px;
-      border-radius: 14px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
-      z-index: 1000;
-    }
-    .legend-title { 
-      font-weight: 600; 
-      margin-bottom: 10px; 
-      color: var(--primary);
-      font-size: 13px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-    .legend-item { 
-      display: flex; 
-      align-items: center; 
-      margin: 6px 0; 
-      font-size: 12px; 
-    }
-    .legend-dot { 
-      width: 12px; 
-      height: 12px; 
-      border-radius: 3px; 
-      margin-right: 10px;
-      flex-shrink: 0;
-    }
-    .legend-line {
-      width: 20px;
-      height: 3px;
-      margin-right: 8px;
-      border-top: 3px dashed var(--route);
-    }
+    /* Legend - HIDDEN */
+    .legend { display: none; }
     
     /* Shape labels */
     .shape-label {
@@ -213,14 +267,22 @@
     <button class="control-btn" id="btnZoomOut" title="Zoom Out">−</button>
   </div>
   
-  <div class="legend">
-    <div class="legend-title">Status</div>
-    <div class="legend-item"><span class="legend-dot" style="background: var(--suitable)"></span> Suitable</div>
-    <div class="legend-item"><span class="legend-dot" style="background: var(--suitable-stale)"></span> Suitable (3+ weeks)</div>
-    <div class="legend-item"><span class="legend-dot" style="background: var(--suitable-old)"></span> Suitable (4+ weeks)</div>
-    <div class="legend-item"><span class="legend-dot" style="background: var(--unsuitable)"></span> Unsuitable</div>
-    <div class="legend-item"><span class="legend-dot" style="background: var(--pending)"></span> Pending Review</div>
-    <div class="legend-item"><span class="legend-line"></span> Route</div>
+  <!-- Top info panel -->
+  <div id="info-panel">
+    <button class="panel-close" onclick="closePanel()">✕</button>
+    <div class="panel-name" id="panelName"></div>
+    <div class="panel-status" id="panelStatus"></div>
+    <div class="panel-date" id="panelDate"></div>
+    <textarea id="panelNotes" placeholder="Notes..."></textarea>
+  </div>
+
+  <!-- Radial action buttons -->
+  <div id="radial-menu">
+    <div class="radial-line" id="lineSuitable"></div>
+    <div class="radial-line" id="lineUnsuitable"></div>
+    <button class="radial-btn btn-suitable" id="radialSuitable">✓</button>
+    <button class="radial-btn btn-unsuitable" id="radialUnsuitable">✗</button>
+    <button class="radial-btn btn-close" id="radialClose">✕</button>
   </div>
   
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -307,7 +369,9 @@
       center: [24.78, 46.74],
       zoom: 13,
       layers: [darkLayer],
-      zoomControl: false
+      zoomControl: false,
+      tap: true,
+      tapTolerance: 20
     });
     
     let isSatellite = false;
@@ -315,6 +379,17 @@
     let labels = {};
     let siteData = {};
     let locationMarker = null;
+    let selectedShape = null;
+    let selectedPoly = null;
+    
+    // UI elements
+    const infoPanel = document.getElementById('info-panel');
+    const radialMenu = document.getElementById('radial-menu');
+    const radialSuitable = document.getElementById('radialSuitable');
+    const radialUnsuitable = document.getElementById('radialUnsuitable');
+    const radialClose = document.getElementById('radialClose');
+    const lineSuitable = document.getElementById('lineSuitable');
+    const lineUnsuitable = document.getElementById('lineUnsuitable');
     
     // Toggle satellite
     document.getElementById('btnSatellite').addEventListener('click', function() {
@@ -412,15 +487,18 @@
         const lastChecked = site?.fields?.LastChecked;
         const color = getShapeColor(status, lastChecked);
         
-        // Polygon
+        // Polygon with increased weight for easier tapping
         const poly = L.polygon(shape.coords, {
           color: color,
           fillColor: color,
           fillOpacity: 0.4,
-          weight: 2
+          weight: 5  // Increased from 2
         }).addTo(map);
         
-        poly.on('click', () => showPopup(shape, poly));
+        poly.on('click', (e) => {
+          L.DomEvent.stopPropagation(e);
+          showRadialMenu(shape, poly, e.latlng);
+        });
         polygons[shape.name] = poly;
         
         // Label
@@ -444,53 +522,142 @@
       }
     }
     
-    // Show popup
-    function showPopup(shape, poly) {
+    // Draw line helper
+    function drawLine(lineEl, x1, y1, x2, y2) {
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      const length = Math.sqrt(dx * dx + dy * dy);
+      const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+      lineEl.style.left = x1 + 'px';
+      lineEl.style.top = y1 + 'px';
+      lineEl.style.width = length + 'px';
+      lineEl.style.transform = `rotate(${angle}deg)`;
+    }
+    
+    // Show radial menu
+    function showRadialMenu(shape, poly, latlng) {
+      // Deselect previous
+      if (selectedPoly) {
+        const prevSite = siteData[selectedShape.name];
+        const prevStatus = prevSite?.fields?.Status || 'Pending';
+        const prevLastChecked = prevSite?.fields?.LastChecked;
+        const prevColor = getShapeColor(prevStatus, prevLastChecked);
+        selectedPoly.setStyle({ weight: 5 });
+      }
+      
+      selectedShape = shape;
+      selectedPoly = poly;
+      
+      // Highlight selected
+      poly.setStyle({ weight: 7 });
+      poly.bringToFront();
+      
+      // Update info panel
       const site = siteData[shape.name];
       const status = site?.fields?.Status || 'Pending';
       const lastChecked = site?.fields?.LastChecked;
-      const lastCheckedDisplay = lastChecked
-        ? new Date(lastChecked).toLocaleDateString('en-GB')
+      const lastCheckedDisplay = lastChecked 
+        ? new Date(lastChecked).toLocaleDateString('en-GB') 
         : 'Never';
       const notes = site?.fields?.Notes || '';
-      const recordId = site?.id;
       
-      const statusClass = getStatusClass(status, lastChecked);
-      const displayStatus = getDisplayStatus(status, lastChecked);
+      document.getElementById('panelName').textContent = shape.name;
+      document.getElementById('panelStatus').textContent = getDisplayStatus(status, lastChecked);
+      document.getElementById('panelDate').textContent = `Last: ${lastCheckedDisplay}`;
+      document.getElementById('panelNotes').value = notes;
+      infoPanel.classList.add('active');
       
-      const html = `
-        <div class="popup-name">${shape.name}</div>
-        <div class="popup-info">
-          <span>Status</span>
-          <span class="popup-status ${statusClass}">${displayStatus}</span>
-        </div>
-        <div class="popup-info">
-          <span>Size</span>
-          <span>${formatArea(shape.area_m2)}</span>
-        </div>
-        <div class="popup-info">
-          <span>Last Updated</span>
-          <span>${lastCheckedDisplay}</span>
-        </div>
-        <div class="popup-notes">
-          <textarea id="popupNotes" placeholder="Add notes...">${notes}</textarea>
-        </div>
-        <div class="popup-buttons">
-          <button class="popup-btn btn-suitable" onclick="saveStatus('${shape.name}', '${recordId}', 'Suitable')">✓ Suitable</button>
-          <button class="popup-btn btn-unsuitable" onclick="saveStatus('${shape.name}', '${recordId}', 'Unsuitable')">✗ Unsuitable</button>
-        </div>
-      `;
+      // Position radial buttons
+      const point = map.latLngToContainerPoint(latlng);
+      const cx = point.x;
+      const cy = point.y;
+      const radius = 65;
       
-      poly.bindPopup(html, { maxWidth: 320, closeButton: true }).openPopup();
+      // Suitable - top left
+      const angle1 = -Math.PI * 3/4;
+      const x1 = cx + Math.cos(angle1) * radius - 24;
+      const y1 = cy + Math.sin(angle1) * radius - 24;
+      radialSuitable.style.left = x1 + 'px';
+      radialSuitable.style.top = y1 + 'px';
+      
+      // Unsuitable - top right
+      const angle2 = -Math.PI / 4;
+      const x2 = cx + Math.cos(angle2) * radius - 24;
+      const y2 = cy + Math.sin(angle2) * radius - 24;
+      radialUnsuitable.style.left = x2 + 'px';
+      radialUnsuitable.style.top = y2 + 'px';
+      
+      // Close - bottom
+      radialClose.style.left = (cx - 18) + 'px';
+      radialClose.style.top = (cy + radius - 18) + 'px';
+      
+      // Draw lines
+      drawLine(lineSuitable, cx, cy, x1 + 24, y1 + 24);
+      drawLine(lineUnsuitable, cx, cy, x2 + 24, y2 + 24);
+      
+      radialMenu.classList.add('active');
     }
     
+    // Close panel and radial
+    function closePanel() {
+      infoPanel.classList.remove('active');
+      radialMenu.classList.remove('active');
+      if (selectedPoly) {
+        selectedPoly.setStyle({ weight: 5 });
+      }
+      selectedShape = null;
+      selectedPoly = null;
+    }
+    
+    // Radial button handlers
+    radialSuitable.addEventListener('click', () => {
+      if (selectedShape) saveStatus('Suitable');
+    });
+    radialUnsuitable.addEventListener('click', () => {
+      if (selectedShape) saveStatus('Unsuitable');
+    });
+    radialClose.addEventListener('click', closePanel);
+    
+    // Close on map click
+    map.on('click', closePanel);
+    
+    // Update radial position on map move
+    map.on('move', () => {
+      if (selectedShape && radialMenu.classList.contains('active')) {
+        const latlng = selectedShape.center;
+        const point = map.latLngToContainerPoint(latlng);
+        const cx = point.x;
+        const cy = point.y;
+        const radius = 65;
+        
+        const angle1 = -Math.PI * 3/4;
+        radialSuitable.style.left = (cx + Math.cos(angle1) * radius - 24) + 'px';
+        radialSuitable.style.top = (cy + Math.sin(angle1) * radius - 24) + 'px';
+        
+        const angle2 = -Math.PI / 4;
+        radialUnsuitable.style.left = (cx + Math.cos(angle2) * radius - 24) + 'px';
+        radialUnsuitable.style.top = (cy + Math.sin(angle2) * radius - 24) + 'px';
+        
+        radialClose.style.left = (cx - 18) + 'px';
+        radialClose.style.top = (cy + radius - 18) + 'px';
+        
+        drawLine(lineSuitable, cx, cy, cx + Math.cos(angle1) * radius, cy + Math.sin(angle1) * radius);
+        drawLine(lineUnsuitable, cx, cy, cx + Math.cos(angle2) * radius, cy + Math.sin(angle2) * radius);
+      }
+    });
+    
     // Save status
-    async function saveStatus(name, recordId, status) {
-      const notesEl = document.getElementById('popupNotes');
-      const notes = notesEl ? notesEl.value : '';
+    async function saveStatus(status) {
+      if (!selectedShape) return;
+      
+      const name = selectedShape.name;
+      const site = siteData[name];
+      const recordId = site?.id;
+      const notes = document.getElementById('panelNotes').value || '';
       
       // Disable buttons
-      document.querySelectorAll('.popup-btn').forEach(b => b.disabled = true);
+      radialSuitable.disabled = true;
+      radialUnsuitable.disabled = true;
       
       const today = new Date().toISOString().split('T')[0];
       
@@ -515,12 +682,14 @@
         const updated = await resp.json();
         siteData[name] = updated;
         updateShapeColor(name, status, today);
-        map.closePopup();
+        closePanel();
         
       } catch (err) {
         console.error('Save error:', err);
         alert('Failed to save. Try again.');
-        document.querySelectorAll('.popup-btn').forEach(b => b.disabled = false);
+      } finally {
+        radialSuitable.disabled = false;
+        radialUnsuitable.disabled = false;
       }
     }
     
