@@ -265,6 +265,15 @@
     
     /* Hide default leaflet controls */
     .leaflet-control-zoom { display: none; }
+    .gps-label {
+      background: rgba(0,0,0,0.7) !important;
+      border: 1px solid #00ffff !important;
+      color: #00ffff !important;
+      font-size: 11px !important;
+      font-weight: bold !important;
+      padding: 2px 6px !important;
+      border-radius: 3px !important;
+    }
   </style>
 </head>
 <body>
@@ -462,6 +471,27 @@
       }
     }
     
+    // Render GPS points as labeled pins
+    function renderGPSPoints() {
+      if (typeof GPS_POINTS !== 'undefined') {
+        GPS_POINTS.forEach(pt => {
+          const marker = L.circleMarker([pt.lat, pt.lng], {
+            radius: 6,
+            fillColor: '#00ffff',
+            color: '#fff',
+            weight: 2,
+            fillOpacity: 0.9
+          }).addTo(map);
+          marker.bindTooltip(pt.name, {
+            permanent: true,
+            direction: 'right',
+            offset: [8, 0],
+            className: 'gps-label'
+          });
+        });
+      }
+    }
+
     // Load site data from Airtable
     async function loadSiteData() {
       try {
@@ -484,6 +514,7 @@
         });
         
         renderRoutes();
+        renderGPSPoints();
         renderShapes();
       } catch (err) {
         console.error('Failed to load:', err);
