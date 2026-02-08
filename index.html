@@ -658,6 +658,30 @@
       }
     });
     
+    // Log change to ChangeLog table
+    async function logChange(siteName, previousStatus, newStatus, notes) {
+      try {
+        await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE}/ChangeLog`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            fields: {
+              Timestamp: new Date().toISOString(),
+              Site: siteName,
+              PreviousStatus: previousStatus || 'Pending',
+              NewStatus: newStatus,
+              Notes: notes || ''
+            }
+          })
+        });
+      } catch (err) {
+        console.warn('Change log failed (table may not exist yet):', err);
+      }
+    }
+
     // Save status
     async function saveStatus(status) {
       if (!selectedShape) return;
@@ -665,6 +689,7 @@
       const name = selectedShape.name;
       const site = siteData[name];
       const recordId = site?.id;
+      const previousStatus = site?.fields?.Status || 'Pending';
       const notes = document.getElementById('panelNotes').value || '';
       
       // Disable buttons
@@ -694,6 +719,10 @@
         const updated = await resp.json();
         siteData[name] = updated;
         updateShapeColor(name, status, today);
+        
+        // Log the change (async, don't wait)
+        logChange(name, previousStatus, status, notes);
+        
         closePanel();
         
       } catch (err) {
