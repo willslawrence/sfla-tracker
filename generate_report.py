@@ -111,13 +111,11 @@ def generate_report(year=None, month=None, output=None):
     # Fetch data
     sites = api_get(SITES_TABLE)
     site_data = []
-    checks_this_month = 0
+    total_checks = 0
     for r in sites:
         f = r.get('fields', {})
         lc = f.get('LastChecked', '')
-        # Count shapes checked this month (LastChecked within range)
-        if lc and lc >= start_iso and lc < end_iso:
-            checks_this_month += 1
+        total_checks += f.get('CheckCount', 0)
         site_data.append({
             'name': f.get('Name', ''),
             'status': f.get('Status', 'Unknown'),
@@ -155,7 +153,7 @@ def generate_report(year=None, month=None, output=None):
     pdf.set_text_color(*DARK_GREY)
     pdf.cell(0, 6, f'Total SFLA Shapes: {total}', new_x="LMARGIN", new_y="NEXT")
     pdf.cell(0, 6, f'Total Changes This Month: {len(change_data)}', new_x="LMARGIN", new_y="NEXT")
-    pdf.cell(0, 6, f'Total Checks Completed: {checks_this_month}', new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 6, f'Total Checks Completed: {total_checks}', new_x="LMARGIN", new_y="NEXT")
     pdf.ln(3)
 
     for status in ['Suitable', 'Unsuitable', 'New SFLA']:

@@ -750,6 +750,24 @@
       }
     }
 
+    // Increment check count on site record
+    async function incrementCheckCount(recordId, currentCount) {
+      try {
+        await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE}/${AIRTABLE_TABLE}/${recordId}`, {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            fields: { CheckCount: (currentCount || 0) + 1 }
+          })
+        });
+      } catch (err) {
+        console.warn('Check count update failed:', err);
+      }
+    }
+
     // Save status
     async function saveStatus(status) {
       if (!selectedShape) return;
@@ -788,8 +806,13 @@
         siteData[name] = updated;
         updateShapeColor(name, status, today);
         
-        // Log the change (async, don't wait)
-        logChange(name, previousStatus, status, notes);
+        // Log only actual status changes or new SFLAs
+        if (previousStatus !== status) {
+          logChange(name, previousStatus, status, notes);
+        }
+        
+        // Always increment check count
+        incrementCheckCount(recordId, site?.fields?.CheckCount || 0);
         
         closePanel();
         
