@@ -658,10 +658,14 @@
       }
     });
     
-    // Log change to ChangeLog table
+    // Log change to Change Log table
     async function logChange(siteName, previousStatus, newStatus, notes) {
       try {
-        await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE}/ChangeLog`, {
+        const now = new Date();
+        const timestamp = now.toISOString().slice(0, 16).replace('T', ' ');
+        const logEntry = `${timestamp} | ${previousStatus || 'Pending'} → ${newStatus}${notes ? '\n' + notes : ''}`;
+        
+        await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE}/Change%20Log`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${API_KEY}`,
@@ -669,16 +673,13 @@
           },
           body: JSON.stringify({
             fields: {
-              Timestamp: new Date().toISOString(),
-              Site: siteName,
-              PreviousStatus: previousStatus || 'Pending',
-              NewStatus: newStatus,
-              Notes: notes || ''
+              Name: siteName,
+              Notes: logEntry
             }
           })
         });
       } catch (err) {
-        console.warn('Change log failed (table may not exist yet):', err);
+        console.warn('Change log failed:', err);
       }
     }
 
