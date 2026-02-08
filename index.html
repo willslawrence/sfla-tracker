@@ -241,6 +241,37 @@
     
     /* Legend - HIDDEN */
     .legend { display: none; }
+    .map-legend {
+      position: absolute;
+      bottom: 30px;
+      left: 10px;
+      z-index: 1000;
+      background: rgba(20, 20, 30, 0.9);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 6px;
+      padding: 10px 14px;
+      font-size: 12px;
+      color: #ccc;
+    }
+    .map-legend h4 {
+      margin: 0 0 6px;
+      font-size: 13px;
+      color: #fff;
+      font-weight: 600;
+    }
+    .map-legend .legend-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 4px 0;
+    }
+    .map-legend .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      display: inline-block;
+      border: 1px solid rgba(255,255,255,0.3);
+    }
     
     /* Shape labels */
     .shape-label {
@@ -278,6 +309,13 @@
 </head>
 <body>
   <div id="map"></div>
+  <div class="map-legend">
+    <h4>SFLA Status</h4>
+    <div class="legend-row"><span class="dot" style="background:#4caf50"></span> Current</div>
+    <div class="legend-row"><span class="dot" style="background:#ffeb3b"></span> Review</div>
+    <div class="legend-row"><span class="dot" style="background:#ff9800"></span> Review Overdue</div>
+    <div class="legend-row"><span class="dot" style="background:#f44336"></span> New SFLA</div>
+  </div>
   
   <div class="controls">
     <button class="control-btn" id="btnLocation" title="My Location">📍</button>
@@ -334,7 +372,7 @@
     // Get color based on status and age
     function getShapeColor(status, lastChecked) {
       if (status === 'Unsuitable') return COLORS.unsuitable;
-      if (status === 'Pending' || !status || status === 'Unknown') return COLORS.pending;
+      if (status === 'Pending' || status === 'New SFLA' || !status || status === 'Unknown') return COLORS.pending;
       
       if (status === 'Suitable') {
         const days = daysSince(lastChecked);
@@ -349,7 +387,7 @@
     // Get status class for popup
     function getStatusClass(status, lastChecked) {
       if (status === 'Unsuitable') return 'status-unsuitable';
-      if (status === 'Pending' || !status || status === 'Unknown') return 'status-pending';
+      if (status === 'Pending' || status === 'New SFLA' || !status || status === 'Unknown') return 'status-pending';
       
       if (status === 'Suitable') {
         const days = daysSince(lastChecked);

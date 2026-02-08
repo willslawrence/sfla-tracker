@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """
 SFLA Monthly Report Generator
-Generates a PDF report showing:
-  - Status summary of all SFLA shapes
-  - Change log for the reporting period
+Generates a PDF report matching THC document style (Aptos Narrow, THC logo header).
+Shows: Summary, Change Log, then SFLA Shape Status (compact 2-page target).
 """
 
 import json, sys, os
@@ -13,11 +12,28 @@ import urllib.request, urllib.parse
 
 # Config
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'config.json')
+LOGO_PATH = os.path.join(os.path.dirname(__file__), 'thc_logo.png')
 config = json.load(open(CONFIG_PATH))
 BASE_ID = config['airtable']['baseId']
 API_KEY = config['airtable']['apiKey']
 SITES_TABLE = 'Sites'
 CHANGELOG_TABLE = 'Change Log'
+
+# THC brand colors
+THC_ORANGE = (237, 125, 49)  # #ED7D31
+BLACK = (0, 0, 0)
+DARK_GREY = (50, 50, 50)
+MID_GREY = (100, 100, 100)
+LIGHT_GREY = (220, 220, 220)
+WHITE = (255, 255, 255)
+
+# Status colors
+STATUS_COLORS = {
+    'Suitable': (76, 175, 80),       # Green
+    'Unsuitable': (107, 114, 128),   # Grey
+    'Pending': (244, 67, 54),        # Red
+    'New SFLA': (244, 67, 54),       # Red
+}
 
 def api_get(table, params=''):
     url = f'https://api.airtable.com/v0/{BASE_ID}/{urllib.parse.quote(table)}?pageSize=100{params}'
@@ -38,60 +54,75 @@ def get_month_range(year, month):
         end = datetime(year, month + 1, 1)
     return start, end
 
+
 class SFLAReport(FPDF):
     def __init__(self, month_str):
         super().__init__()
         self.month_str = month_str
+        # Use built-in Helvetica as closest match to Aptos Narrow
+        self.set_auto_page_break(auto=True, margin=15)
 
     def header(self):
-        self.set_font('Helvetica', 'B', 18)
-        self.set_text_color(255, 102, 0)  # THC orange
-        self.cell(0, 12, 'THC Riyadh UAM SFLA Report', new_x="LMARGIN", new_y="NEXT", align='C')
-        self.set_font('Helvetica', '', 12)
-        self.set_text_color(100, 100, 100)
-        self.cell(0, 8, self.month_str, new_x="LMARGIN", new_y="NEXT", align='C')
-        self.ln(4)
-        self.set_draw_color(200, 200, 200)
-        self.line(10, self.get_y(), 200, self.get_y())
-        self.ln(4)
+        # THC logo top-right
+        if os.path.exists(LOGO_PATH):
+            self.image(LOGO_PATH, x=160, y=6, w=35)
+        
+        # Orange accent line
+        self.set_draw_color(*THC_ORANGE)
+        self.set_line_width(1.5)
+        self.line(10, 22, 155, 22)
+        
+        # Title
+        self.set_xy(10, 8)
+        self.set_font('Helvetica', 'B', 16)
+        self.set_text_color(*DARK_GREY)
+        self.cell(0, 7, 'Riyadh UAM SFLA Report', new_x="LMARGIN", new_y="NEXT")
+        self.set_font('Helvetica', '', 10)
+        self.set_text_color(*MID_GREY)
+        self.cell(0, 5, self.month_str, new_x="LMARGIN", new_y="NEXT")
+        self.ln(6)
 
     def footer(self):
-        self.set_y(-15)
-        self.set_font('Helvetica', 'I', 8)
-        self.set_text_color(150, 150, 150)
-        self.cell(0, 10, f'Generated {datetime.now().strftime("%Y-%m-%d %H:%M")} | THC SFLA Tracker', align='C')
+        self.set_y(-12)
+        self.set_font('Helvetica', 'I', 7)
+        self.set_text_color(*MID_GREY)
+        self.cell(95, 8, f'Generated {datetime.now().strftime("%Y-%m-%d %H:%M")} | THC SFLA Tracker')
+        self.cell(95, 8, f'Page {self.page_no()}', align='R')
 
     def section_title(self, title):
-        self.set_font('Helvetica', 'B', 14)
-        self.set_text_color(40, 40, 40)
-        self.cell(0, 10, title, new_x="LMARGIN", new_y="NEXT")
-        self.ln(2)
+        self.set_font('Helvetica', 'B', 12)
+        self.set_text_color(*DARK_GREY)
+        self.cell(0, 7, title, new_x="LMARGIN", new_y="NEXT")
+        # Orange underline
+        self.set_draw_color(*THC_ORANGE)
+        self.set_line_width(0.5)
+        self.line(10, self.get_y(), 80, self.get_y())
+        self.ln(3)
 
-    def status_color(self, status):
-        colors = {
-            'Suitable': (76, 175, 80),
-            'Unsuitable': (244, 67, 54),
-            'Pending': (255, 152, 0),
-        }
-        return colors.get(status, (150, 150, 150))
+    def status_dot(self, status, x=None, y=None):
+        r, g, b = STATUS_COLORS.get(status, MID_GREY)
+        cx = x or self.get_x()
+        cy = y or (self.get_y() + 2.5)
+        self.set_fill_color(r, g, b)
+        self.ellipse(cx, cy, 3, 3, style='F')
+
 
 def generate_report(year=None, month=None, output=None):
     now = datetime.now()
     if year is None:
-        # Default to previous month
         first = now.replace(day=1)
         prev = first - timedelta(days=1)
         year, month = prev.year, prev.month
-    
+
     start, end = get_month_range(year, month)
     month_str = start.strftime('%B %Y')
-    
+
     if output is None:
         output = os.path.expanduser(f'~/Desktop/Willy/SFLA_Report_{start.strftime("%Y-%m")}.pdf')
 
     print(f'Generating SFLA report for {month_str}...')
 
-    # Fetch all sites
+    # Fetch data
     sites = api_get(SITES_TABLE)
     site_data = []
     for r in sites:
@@ -104,7 +135,7 @@ def generate_report(year=None, month=None, output=None):
         })
     site_data.sort(key=lambda x: x['name'])
 
-    # Fetch change log for the month
+    # Fetch change log
     formula = f"AND(IS_AFTER(Timestamp, '{start.strftime('%Y-%m-%dT00:00:00')}'), IS_BEFORE(Timestamp, '{end.strftime('%Y-%m-%dT00:00:00')}'))"
     changes = api_get(CHANGELOG_TABLE, f'&filterByFormula={urllib.parse.quote(formula)}&sort%5B0%5D%5Bfield%5D=Timestamp&sort%5B0%5D%5Bdirection%5D=desc')
     change_data = []
@@ -123,113 +154,162 @@ def generate_report(year=None, month=None, output=None):
     for s in site_data:
         st = s['status']
         counts[st] = counts.get(st, 0) + 1
+    
+    # Count checks done this month (changes where NewStatus is Suitable or Unsuitable)
+    checks_done = sum(1 for c in change_data if c['new'] in ('Suitable', 'Unsuitable'))
 
     # Build PDF
     pdf = SFLAReport(month_str)
-    pdf.set_auto_page_break(auto=True, margin=20)
     pdf.add_page()
 
-    # === Summary ===
+    # === SUMMARY ===
     pdf.section_title('Summary')
-    pdf.set_font('Helvetica', '', 11)
-    pdf.set_text_color(60, 60, 60)
-    pdf.cell(0, 7, f'Total SFLA shapes: {len(site_data)}', new_x="LMARGIN", new_y="NEXT")
-    pdf.cell(0, 7, f'Changes this month: {len(change_data)}', new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(2)
+    pdf.set_font('Helvetica', '', 10)
+    pdf.set_text_color(*DARK_GREY)
+    
+    total = len(site_data)
+    pdf.cell(0, 6, f'Total SFLA Shapes: {total}', new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 6, f'Total Changes This Month: {len(change_data)}', new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 6, f'Total Checks Completed: {checks_done}', new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(3)
 
-    for status in ['Suitable', 'Unsuitable', 'Pending']:
+    # Status breakdown with colored dots
+    status_order = ['Suitable', 'Unsuitable', 'Pending', 'New SFLA']
+    for status in status_order:
         c = counts.get(status, 0)
-        pct = round(c / len(site_data) * 100, 1) if site_data else 0
-        r, g, b = pdf.status_color(status)
-        pdf.set_fill_color(r, g, b)
-        pdf.set_text_color(255, 255, 255)
-        pdf.set_font('Helvetica', 'B', 11)
-        bar_w = max(pct * 1.2, 15)
-        pdf.cell(bar_w, 8, f' {status}: {c} ({pct}%)', fill=True, new_x="LMARGIN", new_y="NEXT")
-        pdf.ln(2)
+        if c == 0:
+            continue
+        pct = round(c / total * 100, 1) if total else 0
+        x_start = pdf.get_x()
+        pdf.status_dot(status, x_start + 2)
+        pdf.set_x(x_start + 7)
+        pdf.set_font('Helvetica', '', 10)
+        pdf.set_text_color(*DARK_GREY)
+        pdf.cell(0, 6, f'{status}: {c} ({pct}%)', new_x="LMARGIN", new_y="NEXT")
 
-    pdf.ln(6)
+    pdf.ln(4)
 
-    # === All Shapes Status ===
-    pdf.section_title('SFLA Shape Status')
-    pdf.set_font('Helvetica', 'B', 9)
-    pdf.set_text_color(255, 255, 255)
-    pdf.set_fill_color(50, 50, 50)
-    col_w = [25, 35, 45, 35]
-    headers = ['Shape', 'Status', 'Area', 'Last Checked']
-    for i, h in enumerate(headers):
-        pdf.cell(col_w[i], 7, h, border=1, fill=True, align='C')
-    pdf.ln()
-
-    pdf.set_font('Helvetica', '', 9)
-    for i, s in enumerate(site_data):
-        r, g, b = pdf.status_color(s['status'])
-        if i % 2 == 0:
-            pdf.set_fill_color(245, 245, 245)
-        else:
-            pdf.set_fill_color(255, 255, 255)
-        
-        pdf.set_text_color(60, 60, 60)
-        pdf.cell(col_w[0], 6, s['name'], border=1, fill=True, align='C')
-        pdf.set_text_color(r, g, b)
-        pdf.set_font('Helvetica', 'B', 9)
-        pdf.cell(col_w[1], 6, s['status'], border=1, fill=True, align='C')
-        pdf.set_font('Helvetica', '', 9)
-        pdf.set_text_color(60, 60, 60)
-        pdf.cell(col_w[2], 6, s['area'], border=1, fill=True, align='C')
-        pdf.cell(col_w[3], 6, s['last_checked'], border=1, fill=True, align='C')
-        pdf.ln()
-
-    # === Change Log ===
-    pdf.add_page()
+    # === CHANGE LOG ===
     pdf.section_title(f'Change Log - {month_str}')
 
     if not change_data:
-        pdf.set_font('Helvetica', 'I', 11)
-        pdf.set_text_color(150, 150, 150)
-        pdf.cell(0, 10, 'No changes recorded this month.', new_x="LMARGIN", new_y="NEXT")
+        pdf.set_font('Helvetica', 'I', 9)
+        pdf.set_text_color(*MID_GREY)
+        pdf.cell(0, 6, 'No changes recorded this month.', new_x="LMARGIN", new_y="NEXT")
     else:
-        pdf.set_font('Helvetica', 'B', 9)
-        pdf.set_text_color(255, 255, 255)
-        pdf.set_fill_color(50, 50, 50)
-        cl_w = [35, 25, 30, 30, 70]
+        # Table header
+        pdf.set_font('Helvetica', 'B', 8)
+        pdf.set_text_color(*WHITE)
+        pdf.set_fill_color(*DARK_GREY)
+        cl_w = [30, 20, 28, 28, 84]
         cl_headers = ['Date', 'Shape', 'From', 'To', 'Notes']
         for i, h in enumerate(cl_headers):
-            pdf.cell(cl_w[i], 7, h, border=1, fill=True, align='C')
+            pdf.cell(cl_w[i], 6, h, border=1, fill=True, align='C')
         pdf.ln()
 
-        pdf.set_font('Helvetica', '', 8)
+        pdf.set_font('Helvetica', '', 7)
         for i, c in enumerate(change_data):
-            if i % 2 == 0:
-                pdf.set_fill_color(245, 245, 245)
-            else:
-                pdf.set_fill_color(255, 255, 255)
+            if pdf.get_y() > 270:
+                pdf.add_page()
+                # Re-draw header
+                pdf.set_font('Helvetica', 'B', 8)
+                pdf.set_text_color(*WHITE)
+                pdf.set_fill_color(*DARK_GREY)
+                for j, h in enumerate(cl_headers):
+                    pdf.cell(cl_w[j], 6, h, border=1, fill=True, align='C')
+                pdf.ln()
+                pdf.set_font('Helvetica', '', 7)
+
+            bg = (245, 245, 245) if i % 2 == 0 else WHITE
+            pdf.set_fill_color(*bg)
 
             ts = c['timestamp'][:16].replace('T', ' ') if c['timestamp'] else ''
-            pdf.set_text_color(60, 60, 60)
-            pdf.cell(cl_w[0], 6, ts, border=1, fill=True)
-            pdf.cell(cl_w[1], 6, c['name'], border=1, fill=True, align='C')
-            
-            # Color the from/to statuses
+            pdf.set_text_color(*DARK_GREY)
+            pdf.cell(cl_w[0], 5, ts, border=1, fill=True)
+            pdf.cell(cl_w[1], 5, c['name'], border=1, fill=True, align='C')
+
+            # Colored status cells
             for val, wi in [(c['prev'], cl_w[2]), (c['new'], cl_w[3])]:
-                r, g, b = pdf.status_color(val)
+                r, g, b = STATUS_COLORS.get(val, MID_GREY)
                 pdf.set_text_color(r, g, b)
-                pdf.set_font('Helvetica', 'B', 8)
-                pdf.cell(wi, 6, val, border=1, fill=True, align='C')
-            
-            pdf.set_font('Helvetica', '', 8)
-            pdf.set_text_color(60, 60, 60)
-            notes = c['notes'][:50] + '...' if len(c.get('notes', '')) > 50 else c.get('notes', '')
-            pdf.cell(cl_w[4], 6, notes, border=1, fill=True)
+                pdf.set_font('Helvetica', 'B', 7)
+                pdf.cell(wi, 5, val, border=1, fill=True, align='C')
+
+            pdf.set_font('Helvetica', '', 7)
+            pdf.set_text_color(*DARK_GREY)
+            notes = c.get('notes', '') or ''
+            if len(notes) > 60:
+                notes = notes[:57] + '...'
+            pdf.cell(cl_w[4], 5, notes, border=1, fill=True)
             pdf.ln()
+
+    pdf.ln(4)
+
+    # === SFLA STATUS TABLE ===
+    # Compact: fit all shapes in multi-column layout
+    if pdf.get_y() > 200:
+        pdf.add_page()
+    
+    pdf.section_title('Current SFLA Status')
+
+    # Use 4-column layout: Name | Status | Name | Status (x2)
+    col_sets = 4  # 4 pairs across
+    pair_w = 190 / col_sets  # ~47.5 each
+    name_w = pair_w * 0.55
+    stat_w = pair_w * 0.45
+
+    # Header row
+    pdf.set_font('Helvetica', 'B', 7)
+    pdf.set_text_color(*WHITE)
+    pdf.set_fill_color(*DARK_GREY)
+    for _ in range(col_sets):
+        pdf.cell(name_w, 5, 'Shape', border=1, fill=True, align='C')
+        pdf.cell(stat_w, 5, 'Status', border=1, fill=True, align='C')
+    pdf.ln()
+
+    # Fill rows across columns
+    rows_per_col = -(-len(site_data) // col_sets)  # ceiling division
+    pdf.set_font('Helvetica', '', 7)
+    
+    for row in range(rows_per_col):
+        if pdf.get_y() > 275:
+            pdf.add_page()
+            # Re-draw header
+            pdf.set_font('Helvetica', 'B', 7)
+            pdf.set_text_color(*WHITE)
+            pdf.set_fill_color(*DARK_GREY)
+            for _ in range(col_sets):
+                pdf.cell(name_w, 5, 'Shape', border=1, fill=True, align='C')
+                pdf.cell(stat_w, 5, 'Status', border=1, fill=True, align='C')
+            pdf.ln()
+            pdf.set_font('Helvetica', '', 7)
+
+        bg = (248, 248, 248) if row % 2 == 0 else WHITE
+        pdf.set_fill_color(*bg)
+
+        for col in range(col_sets):
+            idx = col * rows_per_col + row
+            if idx < len(site_data):
+                s = site_data[idx]
+                pdf.set_text_color(*DARK_GREY)
+                pdf.cell(name_w, 4.5, s['name'], border=1, fill=True, align='C')
+                r, g, b = STATUS_COLORS.get(s['status'], MID_GREY)
+                pdf.set_text_color(r, g, b)
+                pdf.set_font('Helvetica', 'B', 7)
+                pdf.cell(stat_w, 4.5, s['status'], border=1, fill=True, align='C')
+                pdf.set_font('Helvetica', '', 7)
+            else:
+                pdf.cell(name_w + stat_w, 4.5, '', border=0)
+        pdf.ln()
 
     os.makedirs(os.path.dirname(output), exist_ok=True)
     pdf.output(output)
-    print(f'✅ Report saved: {output}')
+    print(f'Report saved: {output}')
     return output
 
+
 if __name__ == '__main__':
-    # Usage: python3 generate_report.py [YYYY] [MM]
+    # Usage: python3 generate_report.py [YYYY] [MM]  |  python3 generate_report.py current
     if len(sys.argv) >= 3:
         generate_report(int(sys.argv[1]), int(sys.argv[2]))
     elif len(sys.argv) == 2 and sys.argv[1] == 'current':
