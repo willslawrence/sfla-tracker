@@ -62,7 +62,7 @@ class SFLAReport(FPDF):
         self.cell(0, 5, self.month_str, new_x="LMARGIN", new_y="NEXT")
         self.set_draw_color(*LIGHT)
         self.set_line_width(0.3)
-        self.line(10, self.get_y() + 2, 195, self.get_y() + 2)
+        self.line(10, self.get_y() + 2, 165, self.get_y() + 2)
         self.ln(6)
 
     def footer(self):
