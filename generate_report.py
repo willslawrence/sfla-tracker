@@ -52,7 +52,7 @@ class SFLAReport(FPDF):
 
     def header(self):
         if os.path.exists(LOGO_PATH):
-            self.image(LOGO_PATH, x=165, y=6, w=30)
+            self.image(LOGO_PATH, x=172, y=8, w=25)
         self.set_xy(10, 8)
         self.set_font('Helvetica', 'B', 16)
         self.set_text_color(*DARK)
