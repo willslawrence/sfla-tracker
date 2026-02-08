@@ -547,7 +547,7 @@
         
         // Index by name
         allRecords.forEach(r => {
-          siteData[r.fields.Name] = r;
+          siteData[r.fields['SFLA Name'] || r.fields.Name] = r;
         });
         
         renderRoutes();
