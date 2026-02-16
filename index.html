@@ -292,6 +292,20 @@
       border-radius: 50%;
       box-shadow: 0 0 10px rgba(59,130,246,0.5);
     }
+    .my-location.following {
+      animation: pulse-loc 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse-loc {
+      0%, 100% { box-shadow: 0 0 10px rgba(59,130,246,0.5); }
+      50% { box-shadow: 0 0 20px rgba(59,130,246,0.8), 0 0 40px rgba(59,130,246,0.3); }
+    }
+    
+    /* Location accuracy circle */
+    .accuracy-circle {
+      background: rgba(59,130,246,0.1);
+      border: 1px solid rgba(59,130,246,0.3);
+      border-radius: 50%;
+    }
     
     /* Hide default leaflet controls */
     .leaflet-control-zoom { display: none; }
@@ -465,27 +479,97 @@
     document.getElementById('btnZoomIn').addEventListener('click', () => map.zoomIn());
     document.getElementById('btnZoomOut').addEventListener('click', () => map.zoomOut());
     
-    // Location
-    document.getElementById('btnLocation').addEventListener('click', function() {
+    // Location tracking state
+    let watchId = null;
+    let isFollowing = false;
+    let accuracyCircle = null;
+    const btnLocation = document.getElementById('btnLocation');
+    
+    function startFollowing() {
+      isFollowing = true;
+      btnLocation.classList.add('active');
+      btnLocation.textContent = '📍';
+      if (locationMarker) {
+        locationMarker.getElement()?.classList.add('following');
+      }
+    }
+    
+    function stopFollowing() {
+      isFollowing = false;
+      btnLocation.classList.remove('active');
+      if (locationMarker) {
+        locationMarker.getElement()?.classList.remove('following');
+      }
+    }
+    
+    function updateLocation(pos) {
+      const latlng = [pos.coords.latitude, pos.coords.longitude];
+      const accuracy = pos.coords.accuracy;
+      
+      if (locationMarker) {
+        locationMarker.setLatLng(latlng);
+      } else {
+        locationMarker = L.marker(latlng, {
+          icon: L.divIcon({ className: 'my-location following', iconSize: [16, 16] })
+        }).addTo(map);
+      }
+      
+      // Accuracy circle
+      if (accuracyCircle) {
+        accuracyCircle.setLatLng(latlng).setRadius(accuracy);
+      } else {
+        accuracyCircle = L.circle(latlng, {
+          radius: accuracy,
+          className: 'accuracy-circle',
+          stroke: true,
+          color: 'rgba(59,130,246,0.3)',
+          fillColor: 'rgba(59,130,246,0.08)',
+          weight: 1
+        }).addTo(map);
+      }
+      
+      if (isFollowing) {
+        map.setView(latlng, Math.max(map.getZoom(), 14), { animate: true });
+      }
+    }
+    
+    btnLocation.addEventListener('click', function() {
+      if (watchId !== null && isFollowing) {
+        // Already following — just re-center (in case user wants to snap back)
+        if (locationMarker) {
+          map.setView(locationMarker.getLatLng(), Math.max(map.getZoom(), 14), { animate: true });
+        }
+        return;
+      }
+      
+      if (watchId !== null && !isFollowing) {
+        // Was tracking but user panned away — resume following
+        startFollowing();
+        if (locationMarker) {
+          map.setView(locationMarker.getLatLng(), Math.max(map.getZoom(), 14), { animate: true });
+        }
+        return;
+      }
+      
+      // First activation — start watching
       this.textContent = '⏳';
-      navigator.geolocation.getCurrentPosition(
+      watchId = navigator.geolocation.watchPosition(
         (pos) => {
-          const latlng = [pos.coords.latitude, pos.coords.longitude];
-          map.setView(latlng, 15);
-          
-          if (locationMarker) map.removeLayer(locationMarker);
-          locationMarker = L.marker(latlng, {
-            icon: L.divIcon({ className: 'my-location', iconSize: [16, 16] })
-          }).addTo(map);
-          
-          this.textContent = '📍';
+          startFollowing();
+          updateLocation(pos);
         },
-        () => {
+        (err) => {
           alert('Could not get location');
           this.textContent = '📍';
+          watchId = null;
         },
-        { enableHighAccuracy: true }
+        { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
       );
+    });
+    
+    // Stop following when user manually drags/pans the map
+    map.on('dragstart', () => {
+      if (isFollowing) stopFollowing();
     });
     
     // Format area
