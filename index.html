@@ -533,25 +533,33 @@
       }
     }
     
+    function stopTracking() {
+      if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+      }
+      stopFollowing();
+      btnLocation.textContent = '📍';
+      // Remove marker and accuracy circle when tracking is off
+      if (locationMarker) { map.removeLayer(locationMarker); locationMarker = null; }
+      if (accuracyCircle) { map.removeLayer(accuracyCircle); accuracyCircle = null; }
+    }
+
     btnLocation.addEventListener('click', function() {
       if (watchId !== null && isFollowing) {
-        // Already following — just re-center (in case user wants to snap back)
-        if (locationMarker) {
-          map.setView(locationMarker.getLatLng(), Math.max(map.getZoom(), 14), { animate: true });
-        }
+        // Currently following — stop following but keep dot visible
+        stopFollowing();
+        btnLocation.textContent = '📌';
         return;
       }
       
       if (watchId !== null && !isFollowing) {
-        // Was tracking but user panned away — resume following
-        startFollowing();
-        if (locationMarker) {
-          map.setView(locationMarker.getLatLng(), Math.max(map.getZoom(), 14), { animate: true });
-        }
+        // Tracking but not following — turn off entirely
+        stopTracking();
         return;
       }
       
-      // First activation — start watching
+      // Not tracking — start fresh
       this.textContent = '⏳';
       startFollowing();
       watchId = navigator.geolocation.watchPosition(
@@ -560,15 +568,17 @@
         },
         (err) => {
           alert('Could not get location');
-          this.textContent = '📍';
-          watchId = null;
+          stopTracking();
         },
         { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
       );
     });
     
-    // Stop following when user manually drags/pans the map
+    // Stop following when user manually drags/pans/zooms the map
     map.on('dragstart', () => {
+      if (isFollowing) stopFollowing();
+    });
+    map.on('touchmove', () => {
       if (isFollowing) stopFollowing();
     });
     
