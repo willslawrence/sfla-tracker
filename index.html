@@ -553,9 +553,9 @@
       
       // First activation — start watching
       this.textContent = '⏳';
+      startFollowing();
       watchId = navigator.geolocation.watchPosition(
         (pos) => {
-          startFollowing();
           updateLocation(pos);
         },
         (err) => {
